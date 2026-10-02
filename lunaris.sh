@@ -43,7 +43,7 @@ echo "========================================="
 echo "Starting ROM Compilation..."
 echo "========================================="
 
-lunch lineage_timelm-bp4a-user
+lunch lineage_timelm-bp4a-userdebug
 m installclean
 
 # Run main target and stream log
