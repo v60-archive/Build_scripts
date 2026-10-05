@@ -43,11 +43,11 @@ echo "========================================="
 echo "Starting ROM Compilation..."
 echo "========================================="
 
-lunch lineage_timelm-bp4a-userdebug
-m installclean
+riseup timelm userdebug
+
 
 # Run main target and stream log
-m bacon 2>&1 | tee log.txt
+rise b 2>&1 | tee log.txt
 # DONT MAKE ANY MODIFICATIONS BEYOND THIS POINT
 BUILD_STATUS=${PIPESTATUS[0]}
 
