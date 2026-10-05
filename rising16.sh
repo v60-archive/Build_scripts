@@ -3,15 +3,14 @@
 # =========================================================
 # LOAD SECRETS (.secrets in $HOME or current dir)
 # =========================================================
-if [ -f "$HOME/.secrets" ]; then
-    source "$HOME/.secrets"
-elif [ -f "$(pwd)/.secrets" ]; then
-    source "$(pwd)/.secrets"
-fi
+#if [ -f "$HOME/.secrets" ]; then
+#    source "$HOME/.secrets"
+#elif [ -f "$(pwd)/.secrets" ]; then
+#    source "$(pwd)/.secrets"
+#fi
 
 # Search for either key variant in .secrets
-PD_KEY="${PIXELDRAIN_API_KEY:-$PD_API_KEY}"
-
+PD_KEY="d1047b82-92bf-4f3a-bfd1-aeaf65ca34a2"
 # Set build username/host environments
 export BUILD_USERNAME="Gimhan"
 export BUILD_HOSTNAME="Crave"
