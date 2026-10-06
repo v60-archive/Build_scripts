@@ -3,14 +3,14 @@
 # =========================================================
 # LOAD SECRETS (.secrets in $HOME or current dir)
 # =========================================================
-#if [ -f "$HOME/.secrets" ]; then
-#    source "$HOME/.secrets"
-#elif [ -f "$(pwd)/.secrets" ]; then
-#    source "$(pwd)/.secrets"
-#fi
+if [ -f "$HOME/.secrets" ]; then
+    source "$HOME/.secrets"
+elif [ -f "$(pwd)/.secrets" ]; then
+    source "$(pwd)/.secrets"
+fi
 
 # Search for either key variant in .secrets
-PD_KEY="2ae90e37-0bfb-4d50-aaad-0590d3f8934e"
+PD_KEY="${PIXELDRAIN_API_KEY:-$PD_API_KEY}"
 
 # Set build username/host environments
 export BUILD_USERNAME="Gimhan"
@@ -24,8 +24,8 @@ echo "========================================="
 
 # Do Your Modifications here gimhan and shiroi
 # Clear local manifests & re-init
-rm -rf .repo/local_manifests packages/providers/ContactsProvider .repo/projects/packages/providers/ContactsProvider.git vendor/gms .repo/projects/vendor/gms.git .repo/project-objects/LineageOS/android_packages_providers_ContactsProvider.git
-repo init -u https://github.com/s0711482299-lgtm/android -b timelm-custom --no-clone-bundle --depth=1 --git-lfs
+rm -rf .repo/local_manifests
+repo init -u https://github.com/s0711482299-lgtm/android -b sixteen --no-clone-bundle --depth=1 --git-lfs
 git clone https://github.com/s0711482299-lgtm/manifest -b rising-timelm --depth 1 .repo/local_manifests
 
 # Resync trees
