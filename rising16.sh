@@ -45,7 +45,7 @@ echo "Starting ROM Compilation..."
 echo "========================================="
 
 riseup timelm userdebug
-m installclean
+
 
 # Run main target and stream log
 rise b 2>&1 | tee log.txt
