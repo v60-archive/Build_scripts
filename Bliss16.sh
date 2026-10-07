@@ -1,16 +1,13 @@
 #!/bin/bash
 
 # =========================================================
-# LOAD SECRETS (.secrets in $HOME or current dir)
+# PD_KEY — passed from GitHub Actions via env var
 # =========================================================
-#if [ -f "$HOME/.secrets" ]; then
-#    source "$HOME/.secrets"
-#elif [ -f "$(pwd)/.secrets" ]; then
-#    source "$(pwd)/.secrets"
-#fi
-
-# Search for either key variant in .secrets
-PD_KEY="d1047b82-92bf-4f3a-bfd1-aeaf65ca34a2"
+if [ -z "$PD_KEY" ]; then
+    echo "⚠️ WARNING: PD_KEY not set — Pixeldrain upload will fail"
+    echo "   This is normal if running manually"
+    echo "   When triggered from GitHub Actions, PD_KEY comes from secrets"
+fi
 
 # Set build username/host environments
 export BUILD_USERNAME="Gimhan"
