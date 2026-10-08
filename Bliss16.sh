@@ -22,6 +22,24 @@ echo "========================================="
 echo "Syncing Manifests & Repositories..."
 echo "========================================="
 
+# ---------------------------------------------------------
+# FIX: Pre-seed SSH host keys (prevents "authenticity of host" prompt)
+# ---------------------------------------------------------
+mkdir -p ~/.ssh
+ssh-keyscan -H github.com gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
+chmod 600 ~/.ssh/known_hosts
+
+# ---------------------------------------------------------
+# FIX: Rewrite SSH URLs to HTTPS (unblocks repo sync hang)
+# Must run BEFORE any repo init / repo sync.
+# ---------------------------------------------------------
+git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
+git config --global --unset-all url."https://gitlab.com/".insteadOf 2>/dev/null || true
+git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+git config --global url."https://github.com/".insteadOf "git@github.com:"
+git config --global url."https://gitlab.com/".insteadOf "ssh://git@gitlab.com/"
+git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
+
 # Do Your Modifications here gimhan and shiroi
 # Clear local manifests & re-init
 rm -rf .repo/local_manifests
@@ -55,7 +73,7 @@ if [ $BUILD_STATUS -eq 0 ]; then
     echo "========================================="
     echo "✅ Build Completed Successfully!"
     echo "========================================="
-    
+
     # Corrected maxdepth to 4 to reach out/target/product/timelm/*.zip
     ROM_ZIP=$(find out/target/product/ -mindepth 2 -maxdepth 4 -type f -name "*.zip" ! -name "*ota*" ! -name "*target_files*" | head -n 1)
 
