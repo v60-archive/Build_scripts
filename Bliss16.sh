@@ -14,8 +14,10 @@
 # ---------------------------------------------------------
 PD_KEY="9e2aacb7-e7b0-4941-84a4-160d6be7bf99"
 
+# REPLACE THESE 
 TG_TOKEN="8841388263:AAG9Q7QuB4zpLjhxgnM7VzSquKnrj7KKA14"
 TG_CHAT="6684997865"
+TG_ENABLED=1              # set to 0 to disable all notifications
 
 DEVICE="timelm"
 ROM_NAME="Bliss 19.6"
@@ -28,7 +30,7 @@ SCRIPT_START=$(date +%s)
 SYNC_RETRIES=3
 SYNC_RETRY_DELAY=30
 
-# Progress ping interval — reduced from 1800 to 900 (15 min)
+# Progress ping interval (seconds)
 PROGRESS_PING_INTERVAL=900
 
 # =========================================================
@@ -36,28 +38,31 @@ PROGRESS_PING_INTERVAL=900
 # =========================================================
 tg_send() {
     local msg="$1"
-    if [ -z "$TG_TOKEN" ] || [ "$TG_TOKEN" = "PASTE_YOUR_BOT_TOKEN_HERE" ]; then
+    [ "${TG_ENABLED:-1}" = "0" ] && return 0
+    if [ -z "${TG_TOKEN:-}" ] || [ "$TG_TOKEN" = "PASTE_YOUR_NEW_BOT_TOKEN_HERE" ]; then
         echo "⚠️  [tg] TG_TOKEN not set — skipping notification"
         return 0
     fi
     local resp
-    resp=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+    # --max-time 10 caps total call time; --connect-timeout 5 caps connect phase
+    resp=$(curl -s --show-error --max-time 10 --connect-timeout 5 \
+        -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -d chat_id="${TG_CHAT}" \
         -d parse_mode="HTML" \
         -d disable_web_page_preview=true \
-        --data-urlencode "text=${msg}")
+        --data-urlencode "text=${msg}" 2>/dev/null || echo '{}')
     if echo "$resp" | grep -q '"ok":true'; then
         echo "✅ [tg] Notification sent"
     else
-        echo "⚠️  [tg] Notification failed: $resp"
+        echo "⚠️  [tg] Notification failed (continuing)"
     fi
+    return 0
 }
 
 tg_notify() {
-    tg_send "[<code>${BUILD_ID}</code>] $1"
+    tg_send "[<code>${BUILD_ID:-unknown}</code>] $1"
 }
 
-# Stage helper — sends "stage complete" style pings with elapsed time
 tg_stage() {
     local label="$1"
     local now=$(date +%s)
@@ -78,7 +83,6 @@ echo "[1/6] Syncing Manifests & Repositories..."
 echo "Build ID: ${BUILD_ID}"
 echo "========================================="
 
-# ---- Stage: script start ----
 tg_notify "🏁 <b>Build script started</b>
 Device: <code>${DEVICE}</code>
 ROM: ${ROM_NAME}
@@ -91,8 +95,8 @@ Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
 # ---------------------------------------------------------
 echo "--> [1a] Pre-seeding SSH host keys"
 mkdir -p ~/.ssh
-ssh-keyscan -H github.com gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
-chmod 600 ~/.ssh/known_hosts
+ssh-keyscan -H github.com gitlab.com >> ~/.ssh/known_hosts 2>/dev/null || true
+chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
 echo "    done"
 
 # ---------------------------------------------------------
@@ -106,7 +110,7 @@ git config --global url."https://github.com/".insteadOf "git@github.com:"
 git config --global url."https://gitlab.com/".insteadOf "ssh://git@gitlab.com/"
 git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
 echo "    active rewrites:"
-git config --global --get-regexp 'url\.' | sed 's/^/      /'
+git config --global --get-regexp 'url\.' | sed 's/^/      /' || true
 tg_stage "🔧 SSH→HTTPS rewrite applied"
 
 # Do Your Modifications here gimhan and shiroi
@@ -183,13 +187,21 @@ ROM: ${ROM_NAME}
 Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
 
 # --- Background progress pinger ---
+# Writes a marker file every loop so you can verify liveness:
+#   ls -la /tmp/pinger-alive
 (
     LAST_PING=$BUILD_START
-    while [ ! -f "${LOG_FILE}" ]; do sleep 5; done
+    # Wait for log file to exist (up to 60s)
+    for i in $(seq 1 60); do
+        [ -f "${LOG_FILE}" ] && break
+        sleep 1
+    done
     while true; do
         sleep 60
-        [ -f "/proc/$$" ] || exit 0
-        kill -0 $MAIN_PID 2>/dev/null || exit 0
+        # Exit if main script has exited
+        kill -0 "$MAIN_PID" 2>/dev/null || exit 0
+        # Update liveness marker
+        touch /tmp/pinger-alive 2>/dev/null || true
 
         NOW=$(date +%s)
         if [ $((NOW - LAST_PING)) -ge $PROGRESS_PING_INTERVAL ]; then
@@ -207,11 +219,18 @@ Last: <code>${LAST_LINE_ESC}</code>"
 PINGER_PID=$!
 echo "    progress pinger running (pid ${PINGER_PID})"
 
+# --- Run build in foreground ---
 blissify -v timelm 2>&1 | tee "${LOG_FILE}"
-BUILD_STATUS=${PIPESTATUS[0]}
+BUILD_STATUS=${PIPESTATUS[0]:-1}
 echo "--> blissify exit status: $BUILD_STATUS"
 
-kill $PINGER_PID 2>/dev/null || true
+# --- Stop the pinger cleanly ---
+if [ -n "${PINGER_PID:-}" ]; then
+    kill "$PINGER_PID" 2>/dev/null || true
+    sleep 1
+    kill -9 "$PINGER_PID" 2>/dev/null || true
+fi
+rm -f /tmp/pinger-alive 2>/dev/null || true
 
 BUILD_END=$(date +%s)
 BUILD_MIN=$(( (BUILD_END - BUILD_START) / 60 ))
@@ -220,7 +239,7 @@ tg_stage "🏗️ <b>blissify exited</b> (status=${BUILD_STATUS}, ${BUILD_MIN} m
 # =========================================================
 # SUCCESS OR FAILURE HANDLING
 # =========================================================
-if [ $BUILD_STATUS -eq 0 ]; then
+if [ "${BUILD_STATUS:-1}" -eq 0 ]; then
     echo ""
     echo "========================================="
     echo "[3/6] ✅ Build Completed Successfully!"
@@ -228,7 +247,7 @@ if [ $BUILD_STATUS -eq 0 ]; then
     tg_notify "✅ <b>Build succeeded</b> — locating artifact..."
 
     echo "--> Locating ROM artifact"
-    ROM_ZIP=$(find out/target/product/ -mindepth 2 -maxdepth 4 -type f -name "*.zip" ! -name "*ota*" ! -name "*target_files*" | head -n 1)
+    ROM_ZIP=$(find out/target/product/ -mindepth 2 -maxdepth 4 -type f -name "*.zip" ! -name "*ota*" ! -name "*target_files*" 2>/dev/null | head -n 1)
 
     if [ -n "$ROM_ZIP" ] && [ -f "$ROM_ZIP" ]; then
         ZIP_SIZE=$(du -h "$ROM_ZIP" | cut -f1)
@@ -240,10 +259,10 @@ if [ $BUILD_STATUS -eq 0 ]; then
         echo "========================================="
         tg_notify "📤 <b>Uploading ROM to Pixeldrain...</b>"
 
-        if [ -n "$PD_KEY" ]; then
-            RESPONSE=$(curl -s -u ":$PD_KEY" -T "$ROM_ZIP" "https://pixeldrain.com/api/file/")
+        if [ -n "${PD_KEY:-}" ]; then
+            RESPONSE=$(curl -s --max-time 3600 -u ":$PD_KEY" -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
         else
-            RESPONSE=$(curl -s -T "$ROM_ZIP" "https://pixeldrain.com/api/file/")
+            RESPONSE=$(curl -s --max-time 3600 -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
         fi
 
         PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
@@ -263,8 +282,7 @@ Download: https://pixeldrain.com/u/${PD_ID}"
         else
             echo "⚠️ ROM Upload to Pixeldrain failed."
             echo "Response: $RESPONSE"
-            tg_notify "⚠️ <b>Build succeeded but upload failed</b> — ${DEVICE}
-Response: <code>${RESPONSE}</code>"
+            tg_notify "⚠️ <b>Build succeeded but upload failed</b> — ${DEVICE}"
         fi
     else
         echo "❌ Error: Could not locate compiled .zip file in out/target/product/"
@@ -279,7 +297,7 @@ else
     tg_notify "❌ <b>Build failed</b> — extracting error context..."
 
     echo "--> Scanning log for last error"
-    ERROR_LINE=$(grep -n -i -E "ERROR:|FAILED:|ninja: build stopped|fatal error" "${LOG_FILE}" | tail -n 1 | cut -d: -f1)
+    ERROR_LINE=$(grep -n -i -E "ERROR:|FAILED:|ninja: build stopped|fatal error" "${LOG_FILE}" 2>/dev/null | tail -n 1 | cut -d: -f1)
 
     if [ -n "$ERROR_LINE" ]; then
         echo "    error found at line $ERROR_LINE"
@@ -290,12 +308,12 @@ else
         tg_stage "🔍 Error at log line ${ERROR_LINE}"
     else
         echo "    no explicit error found — using last 500 lines"
-        tail -n 500 "${LOG_FILE}" > error_snippet.log
+        tail -n 500 "${LOG_FILE}" > error_snippet.log 2>/dev/null || true
         tg_stage "🔍 No explicit error marker — using last 500 lines"
     fi
     echo "" >> error_snippet.log
     echo "--- last 50 lines of full log ---" >> error_snippet.log
-    tail -n 50 "${LOG_FILE}" >> error_snippet.log
+    tail -n 50 "${LOG_FILE}" >> error_snippet.log 2>/dev/null || true
 
     echo "--- Error Context (uploaded below) ---"
     head -20 error_snippet.log
@@ -308,10 +326,10 @@ else
     echo "========================================="
     tg_notify "📤 <b>Uploading error log...</b>"
 
-    if [ -n "$PD_KEY" ]; then
-        RESPONSE=$(curl -s -u ":$PD_KEY" -T "error_snippet.log" "https://pixeldrain.com/api/file/")
+    if [ -n "${PD_KEY:-}" ]; then
+        RESPONSE=$(curl -s --max-time 300 -u ":$PD_KEY" -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
     else
-        RESPONSE=$(curl -s -T "error_snippet.log" "https://pixeldrain.com/api/file/")
+        RESPONSE=$(curl -s --max-time 300 -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
     fi
 
     PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
@@ -345,7 +363,7 @@ cat > build-meta.json <<EOF
   "started_ts": ${BUILD_START},
   "finished_ts": ${BUILD_END},
   "duration_sec": $(( BUILD_END - BUILD_START )),
-  "status": "$([ $BUILD_STATUS -eq 0 ] && echo success || echo failed)"
+  "status": "$([ "${BUILD_STATUS:-1}" -eq 0 ] && echo success || echo failed)"
 }
 EOF
 echo "--> Build metadata written to build-meta.json"
