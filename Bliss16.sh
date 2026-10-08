@@ -14,7 +14,7 @@
 # ---------------------------------------------------------
 PD_KEY="9e2aacb7-e7b0-4941-84a4-160d6be7bf99"
 
-# REPLACE THESE 
+# Telegram
 TG_TOKEN="8841388263:AAG9Q7QuB4zpLjhxgnM7VzSquKnrj7KKA14"
 TG_CHAT="6684997865"
 TG_ENABLED=1              # set to 0 to disable all notifications
@@ -27,10 +27,6 @@ LOG_FILE="log.txt"
 MAIN_PID=$$
 SCRIPT_START=$(date +%s)
 
-SYNC_RETRIES=3
-SYNC_RETRY_DELAY=30
-
-# Progress ping interval (seconds)
 PROGRESS_PING_INTERVAL=900
 
 # =========================================================
@@ -39,12 +35,11 @@ PROGRESS_PING_INTERVAL=900
 tg_send() {
     local msg="$1"
     [ "${TG_ENABLED:-1}" = "0" ] && return 0
-    if [ -z "${TG_TOKEN:-}" ] || [ "$TG_TOKEN" = "PASTE_YOUR_NEW_BOT_TOKEN_HERE" ]; then
+    if [ -z "${TG_TOKEN:-}" ] || [ "$TG_TOKEN" = "PASTE_YOUR_BOT_TOKEN_HERE" ]; then
         echo "⚠️  [tg] TG_TOKEN not set — skipping notification"
         return 0
     fi
     local resp
-    # --max-time 10 caps total call time; --connect-timeout 5 caps connect phase
     resp=$(curl -s --show-error --max-time 10 --connect-timeout 5 \
         -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
         -d chat_id="${TG_CHAT}" \
@@ -70,16 +65,14 @@ tg_stage() {
     tg_notify "$label <i>[+${elapsed}m]</i>"
 }
 
-# =========================================================
-# BUILD USER/HOST
-# =========================================================
+# Set build username/host environments
 export BUILD_USERNAME="Gimhan"
 export BUILD_HOSTNAME="Crave"
 export KBUILD_BUILD_USER="Gimhan"
 export KBUILD_BUILD_HOST="Crave"
 
 echo "========================================="
-echo "[1/6] Syncing Manifests & Repositories..."
+echo "Syncing Manifests & Repositories..."
 echo "Build ID: ${BUILD_ID}"
 echo "========================================="
 
@@ -90,35 +83,19 @@ Build ID: <code>${BUILD_ID}</code>
 Host: ${BUILD_HOSTNAME}
 Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
 
-# ---------------------------------------------------------
-# FIX: Pre-seed SSH host keys
-# ---------------------------------------------------------
-echo "--> [1a] Pre-seeding SSH host keys"
-mkdir -p ~/.ssh
-ssh-keyscan -H github.com gitlab.com >> ~/.ssh/known_hosts 2>/dev/null || true
-chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
-echo "    done"
-
-# ---------------------------------------------------------
-# FIX: Rewrite SSH URLs to HTTPS
-# ---------------------------------------------------------
-echo "--> [1b] Configuring git SSH→HTTPS rewrite"
-git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
-git config --global --unset-all url."https://gitlab.com/".insteadOf 2>/dev/null || true
-git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-git config --global url."https://github.com/".insteadOf "git@github.com:"
-git config --global url."https://gitlab.com/".insteadOf "ssh://git@gitlab.com/"
-git config --global url."https://gitlab.com/".insteadOf "git@gitlab.com:"
-echo "    active rewrites:"
-git config --global --get-regexp 'url\.' | sed 's/^/      /' || true
-tg_stage "🔧 SSH→HTTPS rewrite applied"
+# Git identity
+echo "--> Setting git identity"
+git config --global user.name "Gimhan"
+git config --global user.email "gimhan@build.local"
+echo "    identity: $(git config --global user.name) <$(git config --global user.email)>"
 
 # Do Your Modifications here gimhan and shiroi
-echo "--> [1c] Clearing local_manifests and running repo init"
+# Clear local manifests & re-init
+echo "--> repo init"
 rm -rf .repo/local_manifests
 tg_stage "📥 <b>repo init started</b>"
-if ! repo init --depth=1 -u https://github.com/BlissRoms/stable_releases.git -b refs/tags/v19.6.1-stable-waterlily --git-lfs; then
-    echo "❌ [1c] repo init FAILED"
+if ! repo init --depth=1 -u https://github.com/s0711482299-lgtm/stable_releases.git -b waterlily-qpr2 --git-lfs; then
+    echo "❌ repo init FAILED"
     tg_notify "❌ <b>Build failed</b> — ${DEVICE}
 Stage: repo init"
     exit 1
@@ -126,9 +103,9 @@ fi
 echo "    repo init OK"
 tg_stage "✅ repo init done"
 
-echo "--> [1d] Cloning local_manifests overlay"
+echo "--> local_manifests clone"
 if ! git clone https://github.com/s0711482299-lgtm/manifest -b Bliss-timelm --depth 1 .repo/local_manifests; then
-    echo "❌ [1d] local_manifests clone FAILED"
+    echo "❌ local_manifests clone FAILED"
     tg_notify "❌ <b>Build failed</b> — ${DEVICE}
 Stage: local_manifests clone"
     exit 1
@@ -136,48 +113,35 @@ fi
 echo "    overlay OK"
 tg_stage "✅ local_manifests cloned"
 
-echo "--> [1e] Syncing source trees (with up to ${SYNC_RETRIES} retries)"
-SYNC_OK=0
+# Resync trees
+echo "--> repo sync"
 SYNC_START=$(date +%s)
-for attempt in $(seq 1 $SYNC_RETRIES); do
-    echo "    sync attempt ${attempt}/${SYNC_RETRIES}"
-    tg_notify "📦 <b>repo sync</b> attempt ${attempt}/${SYNC_RETRIES} started"
-    if /opt/crave/resync.sh 2>/dev/null || \
-       repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync; then
-        SYNC_OK=1
-        break
-    fi
-    echo "    ⚠️  sync attempt ${attempt} failed — retrying in ${SYNC_RETRY_DELAY}s"
-    tg_notify "⚠️ Sync attempt ${attempt}/${SYNC_RETRIES} failed — retrying in ${SYNC_RETRY_DELAY}s"
-    sleep $SYNC_RETRY_DELAY
-done
-
-if [ $SYNC_OK -ne 1 ]; then
-    echo "❌ [1e] repo sync FAILED after ${SYNC_RETRIES} attempts"
+tg_notify "📦 <b>repo sync</b> started"
+if /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync; then
+    SYNC_END=$(date +%s)
+    SYNC_MIN=$(( (SYNC_END - SYNC_START) / 60 ))
+    echo "    sync OK"
+    tg_stage "✅ repo sync done (${SYNC_MIN} min)"
+else
+    echo "❌ repo sync FAILED"
     tg_notify "❌ <b>Build failed</b> — ${DEVICE}
-Stage: repo sync (all ${SYNC_RETRIES} attempts)"
+Stage: repo sync"
     exit 1
 fi
-SYNC_END=$(date +%s)
-SYNC_MIN=$(( (SYNC_END - SYNC_START) / 60 ))
-echo "    sync OK"
-tg_stage "✅ repo sync done (${SYNC_MIN} min)"
 
-echo "--> [1f] Patching boot jars allowlist"
+# Patch boot jars list
 printf '%s\n' 'com\.lge' 'com\.lge\..*' >> build/soong/scripts/check_boot_jars/package_allowed_list.txt
-echo "    done"
 tg_stage "✅ boot-jars patch applied"
 
-echo "--> [1g] Sourcing build/envsetup.sh"
+# Source build env
 source build/envsetup.sh
 tg_stage "✅ envsetup sourced"
 
 # =========================================================
-# BUILD EXECUTION
+# BUILD EXECUTION & LOGGING
 # =========================================================
-echo ""
 echo "========================================="
-echo "[2/6] Starting ROM Compilation..."
+echo "Starting ROM Compilation..."
 echo "========================================="
 
 BUILD_START=$(date +%s)
@@ -186,21 +150,16 @@ Device: <code>${DEVICE}</code>
 ROM: ${ROM_NAME}
 Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
 
-# --- Background progress pinger ---
-# Writes a marker file every loop so you can verify liveness:
-#   ls -la /tmp/pinger-alive
+# Background progress pinger
 (
     LAST_PING=$BUILD_START
-    # Wait for log file to exist (up to 60s)
     for i in $(seq 1 60); do
         [ -f "${LOG_FILE}" ] && break
         sleep 1
     done
     while true; do
         sleep 60
-        # Exit if main script has exited
         kill -0 "$MAIN_PID" 2>/dev/null || exit 0
-        # Update liveness marker
         touch /tmp/pinger-alive 2>/dev/null || true
 
         NOW=$(date +%s)
@@ -219,12 +178,12 @@ Last: <code>${LAST_LINE_ESC}</code>"
 PINGER_PID=$!
 echo "    progress pinger running (pid ${PINGER_PID})"
 
-# --- Run build in foreground ---
+# Run main target and stream log
 blissify -v timelm 2>&1 | tee "${LOG_FILE}"
+# DONT MAKE ANY MODIFICATIONS BEYOND THIS POINT
 BUILD_STATUS=${PIPESTATUS[0]:-1}
-echo "--> blissify exit status: $BUILD_STATUS"
 
-# --- Stop the pinger cleanly ---
+# Stop pinger
 if [ -n "${PINGER_PID:-}" ]; then
     kill "$PINGER_PID" 2>/dev/null || true
     sleep 1
@@ -240,26 +199,22 @@ tg_stage "🏗️ <b>blissify exited</b> (status=${BUILD_STATUS}, ${BUILD_MIN} m
 # SUCCESS OR FAILURE HANDLING
 # =========================================================
 if [ "${BUILD_STATUS:-1}" -eq 0 ]; then
-    echo ""
     echo "========================================="
-    echo "[3/6] ✅ Build Completed Successfully!"
+    echo "✅ Build Completed Successfully!"
     echo "========================================="
     tg_notify "✅ <b>Build succeeded</b> — locating artifact..."
 
-    echo "--> Locating ROM artifact"
+    # Corrected maxdepth to 4 to reach out/target/product/timelm/*.zip
     ROM_ZIP=$(find out/target/product/ -mindepth 2 -maxdepth 4 -type f -name "*.zip" ! -name "*ota*" ! -name "*target_files*" 2>/dev/null | head -n 1)
 
     if [ -n "$ROM_ZIP" ] && [ -f "$ROM_ZIP" ]; then
         ZIP_SIZE=$(du -h "$ROM_ZIP" | cut -f1)
-        echo "    found: $ROM_ZIP (${ZIP_SIZE})"
+        echo "--> Found ROM artifact: $ROM_ZIP (${ZIP_SIZE})"
         tg_stage "📦 Artifact found: <code>$(basename "$ROM_ZIP")</code> (${ZIP_SIZE})"
-        echo ""
-        echo "========================================="
-        echo "[4/6] 📤 Uploading ROM to Pixeldrain..."
-        echo "========================================="
+        echo "📤 Uploading ROM to Pixeldrain..."
         tg_notify "📤 <b>Uploading ROM to Pixeldrain...</b>"
 
-        if [ -n "${PD_KEY:-}" ]; then
+        if [ -n "$PD_KEY" ]; then
             RESPONSE=$(curl -s --max-time 3600 -u ":$PD_KEY" -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
         else
             RESPONSE=$(curl -s --max-time 3600 -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
@@ -290,24 +245,23 @@ Download: https://pixeldrain.com/u/${PD_ID}"
     fi
 
 else
-    echo ""
     echo "========================================="
-    echo "[3/6] ❌ Build Failed! Extracting Error Context..."
+    echo "❌ Build Failed! Extracting Error Context..."
     echo "========================================="
     tg_notify "❌ <b>Build failed</b> — extracting error context..."
 
-    echo "--> Scanning log for last error"
+    # Get the LAST matching error line instead of the first
     ERROR_LINE=$(grep -n -i -E "ERROR:|FAILED:|ninja: build stopped|fatal error" "${LOG_FILE}" 2>/dev/null | tail -n 1 | cut -d: -f1)
 
     if [ -n "$ERROR_LINE" ]; then
-        echo "    error found at line $ERROR_LINE"
         START_LINE=$((ERROR_LINE - 100))
         [ $START_LINE -lt 1 ] && START_LINE=1
         END_LINE=$((ERROR_LINE + 100))
+        # Extract 100 lines before and after the critical error
         sed -n "${START_LINE},${END_LINE}p" "${LOG_FILE}" > error_snippet.log
         tg_stage "🔍 Error at log line ${ERROR_LINE}"
     else
-        echo "    no explicit error found — using last 500 lines"
+        # Fallback to last 500 lines if no explicit pattern hit
         tail -n 500 "${LOG_FILE}" > error_snippet.log 2>/dev/null || true
         tg_stage "🔍 No explicit error marker — using last 500 lines"
     fi
@@ -317,16 +271,15 @@ else
 
     echo "--- Error Context (uploaded below) ---"
     head -20 error_snippet.log
-    echo "..."
     echo "------------------------------------------------"
 
-    echo ""
+    # Upload error snippet
     echo "========================================="
-    echo "[4/6] 📤 Uploading Error Log to Pixeldrain..."
+    echo "📤 Uploading Error Log to Pixeldrain..."
     echo "========================================="
     tg_notify "📤 <b>Uploading error log...</b>"
 
-    if [ -n "${PD_KEY:-}" ]; then
+    if [ -n "$PD_KEY" ]; then
         RESPONSE=$(curl -s --max-time 300 -u ":$PD_KEY" -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
     else
         RESPONSE=$(curl -s --max-time 300 -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
@@ -372,6 +325,6 @@ tg_stage "🗂️ build-meta.json written"
 
 echo ""
 echo "========================================="
-echo "[6/6] Done. Build ID: ${BUILD_ID}"
+echo "Done. Build ID: ${BUILD_ID}"
 echo "========================================="
 tg_notify "🏁 <b>Script done</b> — total $(( (BUILD_END - SCRIPT_START) / 60 )) min"
