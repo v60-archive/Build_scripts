@@ -25,7 +25,7 @@ echo "========================================="
 # Clear local manifests & re-init
 rm -rf .repo/local_manifests
 repo init -u https://github.com/Lunaris-AOSP/android -b 16.2 --git-lfs --depth=1
-git clone https://github.com/s0711482299-lgtm/manifest --depth 1 -b lunaris-timelm .repo/local_manifests
+git clone https://github.com/kiy017/manifest --depth 1 -b lunaris .repo/local_manifests
 
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
