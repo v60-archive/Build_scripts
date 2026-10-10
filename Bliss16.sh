@@ -3,21 +3,21 @@
 # =========================================================
 # LOAD SECRETS (.secrets in $HOME or current dir)
 # =========================================================
-#if [ -f "$HOME/.secrets" ]; then
-#    source "$HOME/.secrets"
-#elif [ -f "$(pwd)/.secrets" ]; then
-#    source "$(pwd)/.secrets"
-#fi
+if [ -f "$HOME/.secrets" ]; then
+    source "$HOME/.secrets"
+    echo "✅ Loaded secrets from $HOME/.secrets"
+elif [ -f "$(pwd)/.secrets" ]; then
+    source "$(pwd)/.secrets"
+    echo "✅ Loaded secrets from $(pwd)/.secrets"
+else
+    echo "⚠️  No secrets file found — Telegram and Pixeldrain will be disabled"
+fi
 
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-PD_KEY="9e2aacb7-e7b0-4941-84a4-160d6be7bf99"
-
-# Telegram
-TG_TOKEN="8841388263:AAG9Q7QuB4zpLjhxgnM7VzSquKnrj7KKA14"
-TG_CHAT="6684997865"
-TG_ENABLED=1              # set to 0 to disable all notifications
+TG_ENABLED=1              # set to 0 to disable all Telegram notifications
+PD_ENABLED=1              # set to 0 to disable all Pixeldrain uploads
 
 DEVICE="timelm"
 ROM_NAME="Bliss 19.6"
@@ -29,13 +29,18 @@ SCRIPT_START=$(date +%s)
 
 PROGRESS_PING_INTERVAL=900
 
+# Verify secrets loaded (prints lengths only, never values)
+if [ -z "${PD_KEY:-}" ]; then echo "⚠️  PD_KEY not set"; else echo "    PD_KEY: ${#PD_KEY} chars"; fi
+if [ -z "${TG_TOKEN:-}" ]; then echo "⚠️  TG_TOKEN not set"; else echo "    TG_TOKEN: ${#TG_TOKEN} chars"; fi
+if [ -z "${TG_CHAT:-}" ]; then echo "⚠️  TG_CHAT not set"; else echo "    TG_CHAT: ${TG_CHAT}"; fi
+
 # =========================================================
 # TELEGRAM
 # =========================================================
 tg_send() {
     local msg="$1"
     [ "${TG_ENABLED:-1}" = "0" ] && return 0
-    if [ -z "${TG_TOKEN:-}" ] || [ "$TG_TOKEN" = "PASTE_YOUR_BOT_TOKEN_HERE" ]; then
+    if [ -z "${TG_TOKEN:-}" ]; then
         echo "⚠️  [tg] TG_TOKEN not set — skipping notification"
         return 0
     fi
@@ -65,7 +70,9 @@ tg_stage() {
     tg_notify "$label <i>[+${elapsed}m]</i>"
 }
 
-# Set build username/host environments
+# =========================================================
+# BUILD USER/HOST
+# =========================================================
 export BUILD_USERNAME="Gimhan"
 export BUILD_HOSTNAME="Crave"
 export KBUILD_BUILD_USER="Gimhan"
@@ -79,9 +86,7 @@ echo "========================================="
 tg_notify "🏁 <b>Build script started</b>
 Device: <code>${DEVICE}</code>
 ROM: ${ROM_NAME}
-Build ID: <code>${BUILD_ID}</code>
-Host: ${BUILD_HOSTNAME}
-Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
+Host: ${BUILD_HOSTNAME}"
 
 # Git identity
 echo "--> Setting git identity"
@@ -146,9 +151,7 @@ echo "========================================="
 
 BUILD_START=$(date +%s)
 tg_notify "🚀 <b>ROM compilation started</b>
-Device: <code>${DEVICE}</code>
-ROM: ${ROM_NAME}
-Time: $(date -u '+%Y-%m-%d %H:%M UTC')"
+Device: <code>${DEVICE}</code>"
 
 # Background progress pinger
 (
@@ -202,47 +205,96 @@ if [ "${BUILD_STATUS:-1}" -eq 0 ]; then
     echo "========================================="
     echo "✅ Build Completed Successfully!"
     echo "========================================="
-    tg_notify "✅ <b>Build succeeded</b> — locating artifact..."
+    tg_notify "✅ <b>Build succeeded</b> — locating artifacts..."
 
-    # Corrected maxdepth to 4 to reach out/target/product/timelm/*.zip
+    ROM_ZIP=""
+    RECOVERY_IMG=""
+    PD_ID=""
+    PD_REC_ID=""
+    ZIP_SIZE=""
+    REC_SIZE=""
+
+    # ---------- Locate ROM zip ----------
     ROM_ZIP=$(find out/target/product/ -mindepth 2 -maxdepth 4 -type f -name "*.zip" ! -name "*ota*" ! -name "*target_files*" 2>/dev/null | head -n 1)
 
+    # ---------- Locate recovery image ----------
+    for candidate in \
+        "out/target/product/${DEVICE}/recovery.img" \
+        "out/target/product/${DEVICE}/boot.img"
+    do
+        [ -f "$candidate" ] && RECOVERY_IMG="$candidate" && break
+    done
+
+    # ---------- Upload ROM ----------
     if [ -n "$ROM_ZIP" ] && [ -f "$ROM_ZIP" ]; then
         ZIP_SIZE=$(du -h "$ROM_ZIP" | cut -f1)
         echo "--> Found ROM artifact: $ROM_ZIP (${ZIP_SIZE})"
-        tg_stage "📦 Artifact found: <code>$(basename "$ROM_ZIP")</code> (${ZIP_SIZE})"
-        echo "📤 Uploading ROM to Pixeldrain..."
-        tg_notify "📤 <b>Uploading ROM to Pixeldrain...</b>"
+        tg_stage "📦 ROM found: <code>$(basename "$ROM_ZIP")</code> (${ZIP_SIZE})"
 
-        if [ -n "$PD_KEY" ]; then
+        if [ "${PD_ENABLED:-1}" = "0" ]; then
+            echo "⚠️  [pd] PD_ENABLED=0 — skipping ROM upload"
+        elif [ -n "${PD_KEY:-}" ]; then
+            echo "📤 Uploading ROM to Pixeldrain..."
+            tg_notify "📤 <b>Uploading ROM to Pixeldrain...</b>"
             RESPONSE=$(curl -s --max-time 3600 -u ":$PD_KEY" -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
+            PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
         else
-            RESPONSE=$(curl -s --max-time 3600 -T "$ROM_ZIP" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
+            echo "⚠️  [pd] PD_KEY not set — skipping ROM upload"
         fi
-
-        PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
 
         if [ -n "$PD_ID" ] && [ "$PD_ID" != "null" ]; then
-            echo "-----------------------------------------"
-            echo "✅ ROM Upload Successful!"
-            echo "🔗 Link: https://pixeldrain.com/u/$PD_ID"
-            echo "-----------------------------------------"
-
-            DURATION_MIN=$(( (BUILD_END - BUILD_START) / 60 ))
-            tg_notify "✅ <b>Build successful</b>
-Device: <code>${DEVICE}</code>
-Duration: ${DURATION_MIN} min
-Size: ${ZIP_SIZE}
-Download: https://pixeldrain.com/u/${PD_ID}"
+            echo "✅ ROM: https://pixeldrain.com/u/$PD_ID"
         else
-            echo "⚠️ ROM Upload to Pixeldrain failed."
-            echo "Response: $RESPONSE"
-            tg_notify "⚠️ <b>Build succeeded but upload failed</b> — ${DEVICE}"
+            echo "⚠️ ROM upload failed or skipped."
         fi
     else
-        echo "❌ Error: Could not locate compiled .zip file in out/target/product/"
-        tg_notify "⚠️ <b>Build succeeded but no .zip found</b> — ${DEVICE}"
+        echo "❌ Error: Could not locate compiled .zip file"
     fi
+
+    # ---------- Upload recovery ----------
+    if [ -n "$RECOVERY_IMG" ] && [ -f "$RECOVERY_IMG" ]; then
+        REC_SIZE=$(du -h "$RECOVERY_IMG" | cut -f1)
+        echo "--> Found recovery image: $RECOVERY_IMG (${REC_SIZE})"
+        tg_stage "🛠️ Recovery found: <code>$(basename "$RECOVERY_IMG")</code> (${REC_SIZE})"
+
+        if [ "${PD_ENABLED:-1}" = "0" ]; then
+            echo "⚠️  [pd] PD_ENABLED=0 — skipping recovery upload"
+        elif [ -n "${PD_KEY:-}" ]; then
+            echo "📤 Uploading recovery to Pixeldrain..."
+            tg_notify "📤 <b>Uploading recovery to Pixeldrain...</b>"
+            RESPONSE=$(curl -s --max-time 3600 -u ":$PD_KEY" -T "$RECOVERY_IMG" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
+            PD_REC_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
+        else
+            echo "⚠️  [pd] PD_KEY not set — skipping recovery upload"
+        fi
+
+        if [ -n "$PD_REC_ID" ] && [ "$PD_REC_ID" != "null" ]; then
+            echo "✅ Recovery: https://pixeldrain.com/u/$PD_REC_ID"
+        else
+            echo "⚠️ Recovery upload failed or skipped."
+        fi
+    else
+        echo "--> No recovery image found (checked recovery.img and boot.img)"
+    fi
+
+    # ---------- Final success notification ----------
+    DURATION_MIN=$(( (BUILD_END - BUILD_START) / 60 ))
+
+    MSG="✅ <b>Build successful</b>
+Device: <code>${DEVICE}</code>
+Duration: ${DURATION_MIN} min"
+
+    if [ -n "$PD_ID" ] && [ "$PD_ID" != "null" ]; then
+        MSG="${MSG}
+ROM: ${ZIP_SIZE:-?} — https://pixeldrain.com/u/${PD_ID}"
+    fi
+
+    if [ -n "$PD_REC_ID" ] && [ "$PD_REC_ID" != "null" ]; then
+        MSG="${MSG}
+Recovery: ${REC_SIZE:-?} — https://pixeldrain.com/u/${PD_REC_ID}"
+    fi
+
+    tg_notify "$MSG"
 
 else
     echo "========================================="
@@ -250,18 +302,15 @@ else
     echo "========================================="
     tg_notify "❌ <b>Build failed</b> — extracting error context..."
 
-    # Get the LAST matching error line instead of the first
     ERROR_LINE=$(grep -n -i -E "ERROR:|FAILED:|ninja: build stopped|fatal error" "${LOG_FILE}" 2>/dev/null | tail -n 1 | cut -d: -f1)
 
     if [ -n "$ERROR_LINE" ]; then
         START_LINE=$((ERROR_LINE - 100))
         [ $START_LINE -lt 1 ] && START_LINE=1
         END_LINE=$((ERROR_LINE + 100))
-        # Extract 100 lines before and after the critical error
         sed -n "${START_LINE},${END_LINE}p" "${LOG_FILE}" > error_snippet.log
         tg_stage "🔍 Error at log line ${ERROR_LINE}"
     else
-        # Fallback to last 500 lines if no explicit pattern hit
         tail -n 500 "${LOG_FILE}" > error_snippet.log 2>/dev/null || true
         tg_stage "🔍 No explicit error marker — using last 500 lines"
     fi
@@ -273,19 +322,18 @@ else
     head -20 error_snippet.log
     echo "------------------------------------------------"
 
-    # Upload error snippet
-    echo "========================================="
-    echo "📤 Uploading Error Log to Pixeldrain..."
-    echo "========================================="
-    tg_notify "📤 <b>Uploading error log...</b>"
-
-    if [ -n "$PD_KEY" ]; then
+    # ---------- Upload error log ----------
+    PD_ID=""
+    if [ "${PD_ENABLED:-1}" = "0" ]; then
+        echo "⚠️  [pd] PD_ENABLED=0 — skipping error log upload"
+    elif [ -n "${PD_KEY:-}" ]; then
+        echo "📤 Uploading Error Log to Pixeldrain..."
+        tg_notify "📤 <b>Uploading error log...</b>"
         RESPONSE=$(curl -s --max-time 300 -u ":$PD_KEY" -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
+        PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
     else
-        RESPONSE=$(curl -s --max-time 300 -T "error_snippet.log" "https://pixeldrain.com/api/file/" 2>/dev/null || echo '{}')
+        echo "⚠️  [pd] PD_KEY not set — skipping error log upload"
     fi
-
-    PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
 
     if [ -n "$PD_ID" ] && [ "$PD_ID" != "null" ]; then
         echo "-----------------------------------------"
@@ -298,10 +346,9 @@ else
 Duration: ${DURATION_MIN} min
 Error log: https://pixeldrain.com/u/${PD_ID}"
     else
-        echo "⚠️ Error log upload failed or API key missing."
-        echo "Response: $RESPONSE"
+        echo "⚠️ Error log upload failed or not configured."
         DURATION_MIN=$(( (BUILD_END - BUILD_START) / 60 ))
-        tg_notify "❌ <b>Build failed</b> (no log uploaded) — ${DEVICE}
+        tg_notify "❌ <b>Build failed</b> — ${DEVICE}
 Duration: ${DURATION_MIN} min"
     fi
 fi
