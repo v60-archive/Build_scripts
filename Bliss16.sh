@@ -1,21 +1,13 @@
 #!/bin/bash
 
 # =========================================================
-# LOAD SECRETS (.secrets in $HOME or current dir)
-# =========================================================
-if [ -f "$HOME/.secrets" ]; then
-    source "$HOME/.secrets"
-    echo "✅ Loaded secrets from $HOME/.secrets"
-elif [ -f "$(pwd)/.secrets" ]; then
-    source "$(pwd)/.secrets"
-    echo "✅ Loaded secrets from $(pwd)/.secrets"
-else
-    echo "⚠️  No secrets file found — Telegram and Pixeldrain will be disabled"
-fi
-
-# ---------------------------------------------------------
 # CONFIG
-# ---------------------------------------------------------
+# =========================================================
+# Hardcoded secrets
+PD_KEY="260bf843-57b6-4ea6-ab2e-cf41acd3b9d5"
+TG_TOKEN="8841388263:AAG9Q7QuB4zpLjhxgnM7VzSquKnrj7KKA14"
+TG_CHAT="6684997865"
+
 TG_ENABLED=1              # set to 0 to disable all Telegram notifications
 PD_ENABLED=1              # set to 0 to disable all Pixeldrain uploads
 
@@ -28,11 +20,6 @@ MAIN_PID=$$
 SCRIPT_START=$(date +%s)
 
 PROGRESS_PING_INTERVAL=900
-
-# Verify secrets loaded (prints lengths only, never values)
-if [ -z "${PD_KEY:-}" ]; then echo "⚠️  PD_KEY not set"; else echo "    PD_KEY: ${#PD_KEY} chars"; fi
-if [ -z "${TG_TOKEN:-}" ]; then echo "⚠️  TG_TOKEN not set"; else echo "    TG_TOKEN: ${#TG_TOKEN} chars"; fi
-if [ -z "${TG_CHAT:-}" ]; then echo "⚠️  TG_CHAT not set"; else echo "    TG_CHAT: ${TG_CHAT}"; fi
 
 # =========================================================
 # TELEGRAM
@@ -98,6 +85,7 @@ echo "    identity: $(git config --global user.name) <$(git config --global user
 # Clear local manifests & re-init
 echo "--> repo init"
 rm -rf .repo/local_manifests
+rm -rf hardware/lineage/interfaces
 tg_stage "📥 <b>repo init started</b>"
 if ! repo init --depth=1 -u https://github.com/s0711482299-lgtm/stable_releases.git -b waterlily-qpr2 --git-lfs; then
     echo "❌ repo init FAILED"
