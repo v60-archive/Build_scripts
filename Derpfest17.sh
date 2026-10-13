@@ -13,27 +13,27 @@ fi
 PD_KEY="${PIXELDRAIN_API_KEY:-$PD_API_KEY}"
 
 # Set build username/host environments
-export BUILD_USERNAME="kiyomi"
-export BUILD_HOSTNAME="yuki"
-export KBUILD_BUILD_USER="kiyomi"
-export KBUILD_BUILD_HOST="yuki"
+export BUILD_USERNAME="Gimhan"
+export BUILD_HOSTNAME="Crave"
+export KBUILD_BUILD_USER="Gimhan"
+export KBUILD_BUILD_HOST="Crave"
 
 echo "========================================="
 echo "Syncing Manifests & Repositories..."
 echo "========================================="
 
 # Clear local manifests & re-init
-rm -rf .repo/local_manifests external/rust/crates external/rust/android-crates-io external/python/cpython2 prebuilts/gcc
-repo init --depth=1 --no-repo-verify --git-lfs -u https://github.com/ProjectInfinity-X/manifest -b 17 -g default,-mips,-darwin,-notdefault
-git clone https://github.com/kiy017/manifest --depth 1 -b infinity17 .repo/local_manifests
+rm -rf .repo/local_manifests 
+repo init --depth=1 -u https://github.com/DerpFest-AOSP/android_manifest.git -b 17 --git-lfs
+git clone https://github.com/s0711482299-lgtm/manifest -b Derpfest --depth 1 .repo/local_manifests
 
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
 
 cd build/soong
-git remote add custom https://github.com/kiy017/build_soong.git
+git remote add custom https://github.com/s0711482299-lgtm/Derp_android_build_soong.git
 git fetch custom
-git reset --hard custom/infinity17
+git reset --hard custom/Derpfest17
 cd ../..
 
 # Patch boot jars list
@@ -49,11 +49,10 @@ echo "========================================="
 echo "Starting ROM Compilation..."
 echo "========================================="
 
-lunch infinity_timelm-userdebug
-m installclean
+lunch timelm_timelm-userdebug
 
 # Run main target and stream log
-m bacon 2>&1 | tee log.txt
+m derp 2>&1 | tee log.txt
 BUILD_STATUS=${PIPESTATUS[0]}
 
 # =========================================================
