@@ -37,7 +37,7 @@ echo "--> Applying build/soong memory patch"
 cd build/soong
 git remote remove custom 2>/dev/null || true
 git remote add custom https://github.com/s0711482299-lgtm/Derp_android_build_soong.git
-if git fetch custom 17 --depth=1 && git reset --hard custom/Derpfest17; then
+if git fetch custom 17 --depth=1 && git reset --hard custom/17; then
     echo "    memory patch applied"
 else
     echo "❌ Failed to apply soong memory patch — check branch name"
