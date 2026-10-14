@@ -23,9 +23,9 @@ echo "Syncing Manifests & Repositories..."
 echo "========================================="
 
 # Clear local manifests & re-init
-rm -rf .repo/local_manifests external/rust/crates external/rust/android-crates-io external/python/cpython2 prebuilts/gcc
+rm -rf .repo/local_manifests external/rust/crates external/rust/android-crates-io external/python/cpython2
 repo init --depth=1 --no-repo-verify --git-lfs -u https://github.com/ProjectInfinity-X/manifest -b 17 -g default,-mips,-darwin,-notdefault
-git clone https://github.com/kiy017/manifest --depth 1 -b infinity17 .repo/local_manifests
+git clone https://github.com/v60-archive/manifest --depth 1 -b infinity17 .repo/local_manifests
 
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
@@ -74,7 +74,7 @@ if [ $BUILD_STATUS -eq 0 ]; then
         if [ -n "$PD_KEY" ]; then
             RESPONSE=$(curl -s -u ":$PD_KEY" -T "$ROM_ZIP" "https://pixeldrain.com/api/file/")
         else
-            RESPONSE=$(curl -s -T "$ROM_ZIP" "https://pixeldrain.com/api/file/")
+            RESPONSE=$(curl -F "file=@$ROM_ZIP" "https://temp.sh/upload")
         fi
 
         PD_ID=$(echo "$RESPONSE" | jq -r '.id' 2>/dev/null || true)
@@ -85,7 +85,7 @@ if [ $BUILD_STATUS -eq 0 ]; then
             echo "🔗 Link: https://pixeldrain.com/u/$PD_ID"
             echo "-----------------------------------------"
         else
-            echo "⚠️ ROM Upload to Pixeldrain failed."
+            echo "⚠️ ROM Upload to Pixeldrain failed. It has been uploaded to temp.sh:."
             echo "Response: $RESPONSE"
         fi
     else
