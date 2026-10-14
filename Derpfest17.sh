@@ -30,12 +30,20 @@ git clone https://github.com/s0711482299-lgtm/manifest -b Derpfest --depth 1 .re
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
 
+# =========================================================
+# SOONG MEMORY LIMIT PATCH
+# =========================================================
+echo "--> Applying build/soong memory patch"
 cd build/soong
+git remote remove custom 2>/dev/null || true
 git remote add custom https://github.com/s0711482299-lgtm/Derp_android_build_soong.git
-git fetch custom
-git reset --hard custom/Derpfest17
+if git fetch custom 17 --depth=1 && git reset --hard custom/Derpfest17; then
+    echo "    memory patch applied"
+else
+    echo "❌ Failed to apply soong memory patch — check branch name"
+    exit 1
+fi
 cd ../..
-
 # Patch boot jars list
 printf '%s\n' 'com\.lge' 'com\.lge\..*' >> build/soong/scripts/check_boot_jars/package_allowed_list.txt
 
