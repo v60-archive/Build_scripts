@@ -49,7 +49,7 @@ echo "========================================="
 echo "Starting ROM Compilation..."
 echo "========================================="
 
-lunch timelm_timelm-userdebug
+lunch lineage_timelm-cp2a-userdebug
 
 # Run main target and stream log
 m derp 2>&1 | tee log.txt
