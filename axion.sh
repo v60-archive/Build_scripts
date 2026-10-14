@@ -25,7 +25,7 @@ echo "========================================="
 # Clear local manifests & re-init
 rm -rf .repo/local_manifests
 repo init --no-repo-verify --git-lfs -u https://github.com/AxionAOSP/android.git -b lineage-23.2 --depth=1
-git clone https://github.com/kiy017/manifest --depth 1 -b axion .repo/local_manifests
+git clone https://github.com/v60-archive/manifest --depth 1 -b axion .repo/local_manifests
 
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
