@@ -11,9 +11,9 @@
 # CONFIG
 # =========================================================
 # Hardcoded secrets
-PD_KEY="9e2aacb7-e7b0-4941-84a4-160d6be7bf99"
+PD_KEY="PD_KEY"
 TG_TOKEN="PASTE_YOUR_REAL_BOT_TOKEN_HERE"
-TG_CHAT="6684997865"
+TG_CHAT="TG_CHAT"
 
 TG_ENABLED=1              # set to 0 to disable all Telegram notifications
 PD_ENABLED=1              # set to 0 to disable all Pixeldrain uploads
