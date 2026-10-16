@@ -1,6 +1,14 @@
 #!/bin/bash
 
 # =========================================================
+# Clear local manifests at line    : 94
+# Repo init at line                : 96
+# Clone device trees at line       : 104
+# SOONG MEMORY LIMIT PATCH at line : 135,136
+# Patch boot jars list at line     : 149
+# Lunch command at line            : 196
+# Set build target at line         : 197
+#
 # CONFIG
 # =========================================================
 # Hardcoded secrets
