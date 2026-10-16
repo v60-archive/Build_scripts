@@ -1,22 +1,20 @@
 #!/bin/bash
 
 # =========================================================
-# LOAD SECRETS (.secrets in $HOME or current dir)
-# =========================================================
-if [ -f "$HOME/.secrets" ]; then
-    source "$HOME/.secrets"
-    echo "✅ Loaded secrets from $HOME/.secrets"
-elif [ -f "$(pwd)/.secrets" ]; then
-    source "$(pwd)/.secrets"
-    echo "✅ Loaded secrets from $(pwd)/.secrets"
-else
-    echo "⚠️  No secrets file found — Telegram and Pixeldrain will be disabled"
-fi
-
-
-# ---------------------------------------------------------
+# Clear local manifests at line : 96
+# Repo init at line             : 98
+# Clone device trees at line    : 108
+# Patch boot jars list at line  : 133
+# Lunch command at line         : 180
+# Set build target at line      : 184
+# 
 # CONFIG
-# ---------------------------------------------------------
+# =========================================================
+# Hardcoded secrets
+PD_KEY="9e2aacb7-e7b0-4941-84a4-160d6be7bf99"
+TG_TOKEN="PASTE_YOUR_REAL_BOT_TOKEN_HERE"
+TG_CHAT="6684997865"
+
 TG_ENABLED=1              # set to 0 to disable all Telegram notifications
 PD_ENABLED=1              # set to 0 to disable all Pixeldrain uploads
 
@@ -29,11 +27,6 @@ MAIN_PID=$$
 SCRIPT_START=$(date +%s)
 
 PROGRESS_PING_INTERVAL=900
-
-# Verify secrets loaded (prints lengths only, never values)
-if [ -z "${PD_KEY:-}" ]; then echo "⚠️  PD_KEY not set"; else echo "    PD_KEY: ${#PD_KEY} chars"; fi
-if [ -z "${TG_TOKEN:-}" ]; then echo "⚠️  TG_TOKEN not set"; else echo "    TG_TOKEN: ${#TG_TOKEN} chars"; fi
-if [ -z "${TG_CHAT:-}" ]; then echo "⚠️  TG_CHAT not set"; else echo "    TG_CHAT: ${TG_CHAT}"; fi
 
 # =========================================================
 # TELEGRAM
