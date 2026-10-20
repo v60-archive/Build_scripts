@@ -33,6 +33,14 @@ git clone https://github.com/v60-archive/manifest --depth 1 -b axion .repo/local
 # Patch boot jars list
 printf '%s\n' 'com\.lge' 'com\.lge\..*' >> build/soong/scripts/check_boot_jars/package_allowed_list.txt
 
+# OOM Fix
+cd build/soong
+repo cherry-pick 10693
+cd -
+cd vendor/lineage
+repo cherry-pick 10558
+cd -
+
 # Source build env
 source build/envsetup.sh
 
