@@ -35,10 +35,10 @@ printf '%s\n' 'com\.lge' 'com\.lge\..*' >> build/soong/scripts/check_boot_jars/p
 
 # OOM Fix
 cd build/soong
-repo cherry-pick 10693
+git fetch https://github.com/PixelOS-AOSP/android_build_soong 173bd39389e5d1d91b27db80000f3479dbaf7add && git cherry-pick FETCH_HEAD
 cd -
 cd vendor/lineage
-repo cherry-pick 10558
+git fetch https://github.com/PixelOS-AOSP/android_vendor_lineage 5afe85e37566a85112acd1ffc499ad32ec62c1ef && git cherry-pick FETCH_HEAD
 cd -
 
 # Source build env
