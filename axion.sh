@@ -35,7 +35,9 @@ printf '%s\n' 'com\.lge' 'com\.lge\..*' >> build/soong/scripts/check_boot_jars/p
 
 # OOM Fix
 cd build/soong
-git fetch https://github.com/PixelOS-AOSP/android_build_soong 173bd39389e5d1d91b27db80000f3479dbaf7add && git cherry-pick FETCH_HEAD
+git remote add fix https://github.com/v60-archive/build_soong
+git fetch fix
+git reset --hard fix/axion16
 cd -
 cd vendor/lineage
 git fetch https://github.com/PixelOS-AOSP/android_vendor_lineage 5afe85e37566a85112acd1ffc499ad32ec62c1ef && git cherry-pick FETCH_HEAD
