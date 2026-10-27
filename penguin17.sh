@@ -10,7 +10,7 @@ echo "Syncing Manifests & Repositories..."
 echo "========================================="
 
 # Clear local manifests & re-init
-rm -rf .repo/local_manifests external/rust/crates external/rust/android-crates-io external/python/cpython2 prebuilts/gcc
+rm -rf .repo/local_manifests external/rust/crates external/rust/android-crates-io external/python/cpython2
 repo init -u https://github.com/Project-PenguinOS/manifest -b celerity --git-lfs --depth 1
 git clone https://github.com/v60-archive/manifest --depth 1 -b penguin17 .repo/local_manifests
 
