@@ -17,6 +17,7 @@ git clone https://github.com/v60-archive/manifest --depth 1 -b penguin17 .repo/l
 # Resync trees
 /opt/crave/resync.sh || repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
 
+
 cd build/soong
 git remote add custom https://github.com/v60-archive/build_soong.git
 git fetch custom
@@ -36,5 +37,18 @@ echo "========================================="
 echo "Starting ROM Compilation..."
 echo "========================================="
 
-./rom-build.sh timelm
+./rom-build.sh timelm 2>&1 | tee log.txt
+BUILD_STATUS=${PIPESTATUS[0]}
 
+# =========================================================
+# SUCCESS OR FAILURE HANDLING
+# =========================================================
+if [ $BUILD_STATUS -eq 0 ]; then
+    echo "========================================="
+    echo "✅ Build Completed Successfully!"
+    echo "========================================="
+else
+    echo "========================================="
+    echo "❌ Build Failed!"
+    echo "========================================="
+fi
